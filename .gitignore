@@ -1,2 +1,4 @@
 .env
 venv
+.git_ignore
+.DS_Store
