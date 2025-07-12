@@ -9,10 +9,23 @@ print("WELCOME TO MINI COMMAND LINE BASED CURSOR !")
 
 def run_command(cmd:str):
     res = os.system(cmd)
+    print(res)
     return res
 
+def write_code(file_name, input):
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(file_name), exist_ok=True)
+    
+    # Write content to file
+    with open(file_name, 'w') as f:
+        f.write(input)
+    
+    return f"Code written to {file_name}"
+
+
 available_tools = {
-    "run_command":run_command
+    "run_command":run_command,
+    "write_code":write_code
 }
 
 SYSTEM_PROMPT = """
@@ -27,6 +40,7 @@ SYSTEM_PROMPT = """
 
     Available Tools:
     1. "run_command":Takes linux command as a string and executes the command and returns the output after executing it.
+    2. "write_code":Takes a file_name and code , and write that code in the particular file
     
    Rules:
     - Follow the Output JSON Format.
@@ -60,6 +74,29 @@ SYSTEM_PROMPT = """
     then start writing code for making a todo application file by file as needed , follow proper Component structure and make sure to place them inside App file.
     
     make sure to run npm install, then run the server using command : "cd {{name of project}} && npm run dev"
+
+    User: Create a hello world program in react .
+    Output: {{"step":"start","content":"User wants me to create a react app and make a hello world page in it ."}}
+    Output:{{"step":"plan","content":"I have a tool called 'run_command' that can help me setup react project"}}
+    Output :{{"step":"action","function":"run_command","input":"npm create vite@latest hello-world-app (or any other name you feel appropriate , unless explicitely specified by user) -- --template react"}}
+    Output: {{"step":"plan","content":"now that the folder structure is ready I need to navigate to the appropriate folder and install the dependencied first . I can use a tool called 'run_command' "}}
+    Output: {{"step":"action","function":"run_command","input":"cd hello-world-app && npm i"}}
+    Output: {{"step":"action","function":"run_command","input":"cd hello-world-app"}} 
+    Output: {{"step":"plan","content":"now that the dependencies are setup I need to navigate to the appropriate file and write code in it . I can use a tool called 'write_code'"}}
+    Output: {{"step":"action","function":"write_code","file_name":"hello-world-app/src/App.jsx","input":"import React from 'react'
+            function App() {
+                return (
+                    <div>
+                    Hello World
+                    </div>
+                )
+            }
+            export default App"}}
+    Output: {{"step":"plan","content":"Now I have completed all the things mentioned in the prompt so , i will just start the project now, i have a tool 'run_command' that I can use to start the project. "}}
+    Output: {{"step":"action","function":"run_command","input":"cd hello-world-app && npm run dev"}}
+    Output : {{"step":"observe","content":"The App has been created completely"}}
+
+
 """
 messages = [{"role":"system","content":SYSTEM_PROMPT}]
 while True:
@@ -67,12 +104,12 @@ while True:
     messages.append({"role" : "user","content" : query})
     while True:
         response = client.chat.completions.create(
-            model = "gpt-4.1",
+            model = "gpt-4o",
             response_format = {"type":"json_object"},
             messages = messages,
         )
-        # ai ko bhjne ke liye string me convert kerdiya
-        # json me repsonse milra hai AI se to direct store kerliya obj me
+        # ai ko simply bhej diya aage json string me hi
+        # json string me repsonse milra hai AI se to convert kerliya python object me
         obj = json.loads(response.choices[0].message.content)
         messages.append({"role":"assistant","content":response.choices[0].message.content})
         
@@ -81,7 +118,12 @@ while True:
         print(response.choices[0].message.content)
 
         if step == "action":
-            result = available_tools[obj["function"]](obj.get("input"))
+            function_to_call = obj["function"]
+            global result
+            if function_to_call == "run_command":
+                result = available_tools[function_to_call](obj.get("input"))
+            else:
+                result = available_tools[function_to_call](obj.get("file_name"),obj.get("input"))
             messages.append({ "role": "assistant", "content": json.dumps({ "step": "observe", "content": result }) })
             continue
         if step == "result":
